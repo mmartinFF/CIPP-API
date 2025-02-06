@@ -3,7 +3,9 @@ using namespace System.Net
 Function Invoke-ExecSetMailboxQuota {
     <#
     .FUNCTIONALITY
-    Entrypoint
+        Entrypoint
+    .ROLE
+        Exchange.Mailbox.ReadWrite
     #>
     [CmdletBinding()]
     param($Request, $TriggerMetadata)
@@ -12,7 +14,7 @@ Function Invoke-ExecSetMailboxQuota {
         Write-LogMessage -user $request.headers.'x-ms-client-principal' -API $APINAME -message 'Accessed this API' -Sev 'Debug'
         $Username = $request.body.user
         $Tenantfilter = $request.body.tenantfilter
-        $quota = $Request.body.input
+        $quota = $Request.body.quota
         $Results = try {
             if ($Request.Body.ProhibitSendQuota) {
                 $quota = New-ExoRequest -tenantid $TenantFilter -cmdlet 'Set-Mailbox' -cmdParams @{Identity = $Username; ProhibitSendQuota = $quota }

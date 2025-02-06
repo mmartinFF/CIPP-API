@@ -3,7 +3,9 @@ using namespace System.Net
 Function Invoke-ListStandards {
     <#
     .FUNCTIONALITY
-    Entrypoint
+        Entrypoint
+    .ROLE
+        Tenant.Standards.Read
     #>
     [CmdletBinding()]
     param($Request, $TriggerMetadata)
@@ -38,14 +40,6 @@ Function Invoke-ListStandards {
                 appliedAt       = $tenant.appliedAt
                 standards       = $tenant.Standards
                 StandardsExport = ($tenant.Standards.psobject.properties.name) -join ', '
-            }
-        }
-        if (!$CurrentStandards) {
-            $CurrentStandards = [PSCustomObject]@{
-                displayName = 'No Standards applied'
-                appliedBy   = $null
-                appliedAt   = $null
-                standards   = @{none = $null }
             }
         }
 
