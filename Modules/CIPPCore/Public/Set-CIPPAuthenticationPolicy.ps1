@@ -11,7 +11,7 @@ function Set-CIPPAuthenticationPolicy {
         $TAPDefaultLength = 8, #TAP password generated length in chars
         $TAPisUsableOnce = $true,
         $APIName = 'Set Authentication Policy',
-        $ExecutingUser
+        $Headers
     )
 
     # Convert bool input to usable string
@@ -21,9 +21,9 @@ function Set-CIPPAuthenticationPolicy {
         $CurrentInfo = New-GraphGetRequest -Uri "https://graph.microsoft.com/beta/policies/authenticationmethodspolicy/authenticationMethodConfigurations/$AuthenticationMethodId" -tenantid $Tenant
         $CurrentInfo.state = $State
     } catch {
-        $ErrorMessage = Get-NormalizedError -Message $_.Exception.Message
-        Write-LogMessage -user $ExecutingUser -API $APIName -tenant $Tenant -message "Could not get CurrentInfo for $AuthenticationMethodId. Error:$ErrorMessage" -sev Error
-        Return "Could not get CurrentInfo for $AuthenticationMethodId. Error:$($_.exception.message)"
+        $ErrorMessage = Get-CippException -Exception $_
+        Write-LogMessage -headers $Headers -API $APIName -tenant $Tenant -message "Could not get CurrentInfo for $AuthenticationMethodId. Error:$($ErrorMessage.NormalizedError)" -sev Error -LogData $ErrorMessage
+        Return "Could not get CurrentInfo for $AuthenticationMethodId. Error:$($ErrorMessage.NormalizedError)"
     }
 
     switch ($AuthenticationMethodId) {
@@ -55,7 +55,7 @@ function Set-CIPPAuthenticationPolicy {
         # SMS
         'SMS' {
             if ($State -eq 'enabled') {
-                Write-LogMessage -user $ExecutingUser -API $APIName -tenant $Tenant -message "Setting $AuthenticationMethodId to enabled is not allowed" -sev Error
+                Write-LogMessage -headers $Headers -API $APIName -tenant $Tenant -message "Setting $AuthenticationMethodId to enabled is not allowed" -sev Error
                 return "Setting $AuthenticationMethodId to enabled is not allowed"
             }
         }
@@ -86,7 +86,7 @@ function Set-CIPPAuthenticationPolicy {
         'Voice' {
             # Disallow enabling voice
             if ($State -eq 'enabled') {
-                Write-LogMessage -user $ExecutingUser -API $APIName -tenant $Tenant -message "Setting $AuthenticationMethodId to enabled is not allowed" -sev Error
+                Write-LogMessage -headers $Headers -API $APIName -tenant $Tenant -message "Setting $AuthenticationMethodId to enabled is not allowed" -sev Error
                 return "Setting $AuthenticationMethodId to enabled is not allowed"
             }
         }
@@ -94,7 +94,7 @@ function Set-CIPPAuthenticationPolicy {
         # Email OTP
         'Email' {
             if ($State -eq 'enabled') {
-                Write-LogMessage -user $ExecutingUser -API $APIName -tenant $Tenant -message "Setting $AuthenticationMethodId to enabled is not allowed" -sev Error
+                Write-LogMessage -headers $Headers -API $APIName -tenant $Tenant -message "Setting $AuthenticationMethodId to enabled is not allowed" -sev Error
                 return "Setting $AuthenticationMethodId to enabled is not allowed"
             }
         }
@@ -104,7 +104,7 @@ function Set-CIPPAuthenticationPolicy {
             # Nothing special to do here
         }
         Default {
-            Write-LogMessage -user $ExecutingUser -API $APIName -tenant $Tenant -message "Somehow you hit the default case with an input of $AuthenticationMethodId . You probably made a typo in the input for AuthenticationMethodId. It`'s case sensitive." -sev Error
+            Write-LogMessage -headers $Headers -API $APIName -tenant $Tenant -message "Somehow you hit the default case with an input of $AuthenticationMethodId . You probably made a typo in the input for AuthenticationMethodId. It`'s case sensitive." -sev Error
             return "Somehow you hit the default case with an input of $AuthenticationMethodId . You probably made a typo in the input for AuthenticationMethodId. It`'s case sensitive."
         }
     }
@@ -113,13 +113,13 @@ function Set-CIPPAuthenticationPolicy {
         if ($PSCmdlet.ShouldProcess($AuthenticationMethodId, "Set state to $State $OptionalLogMessage")) {
             # Convert body to JSON and send request
             $null = New-GraphPostRequest -tenantid $Tenant -Uri "https://graph.microsoft.com/beta/policies/authenticationmethodspolicy/authenticationMethodConfigurations/$AuthenticationMethodId" -Type patch -Body ($CurrentInfo | ConvertTo-Json -Compress -Depth 10) -ContentType 'application/json'
-            Write-LogMessage -user $ExecutingUser -API $APIName -tenant $Tenant -message "Set $AuthenticationMethodId state to $State $OptionalLogMessage" -sev Info
+            Write-LogMessage -headers $Headers -API $APIName -tenant $Tenant -message "Set $AuthenticationMethodId state to $State $OptionalLogMessage" -sev Info
         }
         return "Set $AuthenticationMethodId state to $State $OptionalLogMessage"
 
     } catch {
-        Get-NormalizedError -Message $_.Exception.Message
-        Write-LogMessage -user $ExecutingUser -API $APIName -tenant $Tenant -message "Failed to $State $AuthenticationMethodId Support: $ErrorMessage" -sev Error -LogData (Get-CippException -Exception $_)
-        return "Failed to $State $AuthenticationMethodId Support: $ErrorMessage"
+        $ErrorMessage = Get-CippException -Exception $_
+        Write-LogMessage -headers $Headers -API $APIName -tenant $Tenant -message "Failed to $State $AuthenticationMethodId Support: $ErrorMessage" -sev Error -LogData $ErrorMessage
+        return "Failed to $State $AuthenticationMethodId Support. Error: $($ErrorMessage.NormalizedError)"
     }
 }
