@@ -1,40 +1,47 @@
 using namespace System.Net
 
-Function Invoke-AddAutopilotConfig {
+function Invoke-AddAutopilotConfig {
     <#
     .FUNCTIONALITY
-    Entrypoint
+        Entrypoint
+    .ROLE
+        Endpoint.Autopilot.ReadWrite
     #>
     [CmdletBinding()]
     param($Request, $TriggerMetadata)
 
-    $APIName = $TriggerMetadata.FunctionName
-    Write-LogMessage -user $request.headers.'x-ms-client-principal' -API $APINAME -message 'Accessed this API' -Sev 'Debug'
-
-
-    # Write to the Azure Functions log stream.
-    Write-Host 'PowerShell HTTP trigger function processed a request.'
+    $APIName = $Request.Params.CIPPEndpoint
+    $Headers = $Request.Headers
+    Write-LogMessage -headers $Headers -API $APIName -message 'Accessed this API' -Sev 'Debug'
 
     # Input bindings are passed in via param block.
-    $Tenants = ($Request.body | Select-Object Select_*).psobject.properties.value
-    $displayname = $request.body.Displayname
-    $description = $request.body.Description
-    $AssignTo = if ($request.body.Assignto -ne 'on') { $request.body.Assignto }
-    $Profbod = $Request.body
-    $usertype = if ($Profbod.NotLocalAdmin -eq 'true') { 'standard' } else { 'administrator' }
-    $DeploymentMode = if ($profbod.DeploymentMode -eq 'true') { 'shared' } else { 'singleUser' }
-    $results = foreach ($Tenant in $tenants) {
-        Set-CIPPDefaultAPDeploymentProfile -tenantFilter $tenant -displayname $displayname -description $description -usertype $usertype -DeploymentMode $DeploymentMode -assignto $AssignTo -devicenameTemplate $Profbod.deviceNameTemplate -allowWhiteGlove $Profbod.allowWhiteGlove -CollectHash $Profbod.collectHash -hideChangeAccount $Profbod.hideChangeAccount -hidePrivacy $Profbod.hidePrivacy -hideTerms $Profbod.hideTerms -Autokeyboard $Profbod.Autokeyboard
+    $Tenants = $Request.Body.selectedTenants.value
+    $Profbod = [pscustomobject]$Request.Body
+    $UserType = if ($Profbod.NotLocalAdmin -eq 'true') { 'standard' } else { 'administrator' }
+    $DeploymentMode = if ($Profbod.DeploymentMode -eq 'true') { 'shared' } else { 'singleUser' }
+    $profileParams = @{
+        DisplayName        = $Request.Body.DisplayName
+        Description        = $Request.Body.Description
+        UserType           = $UserType
+        DeploymentMode     = $DeploymentMode
+        AssignTo           = $Request.Body.Assignto
+        DeviceNameTemplate = $Profbod.DeviceNameTemplate
+        AllowWhiteGlove    = $Profbod.allowWhiteGlove
+        CollectHash        = $Profbod.CollectHash
+        HideChangeAccount  = $Profbod.HideChangeAccount
+        HidePrivacy        = $Profbod.HidePrivacy
+        HideTerms          = $Profbod.HideTerms
+        Autokeyboard       = $Profbod.Autokeyboard
+        Language           = $ProfBod.languages.value
     }
-
-    $body = [pscustomobject]@{'Results' = $results }
+    $Results = foreach ($tenant in $Tenants) {
+        $profileParams['tenantFilter'] = $tenant
+        Set-CIPPDefaultAPDeploymentProfile @profileParams
+    }
 
     # Associate values to output bindings by calling 'Push-OutputBinding'.
     Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
             StatusCode = [HttpStatusCode]::OK
-            Body       = $body
+            Body       = @{'Results' = $Results }
         })
-
-
-
 }
