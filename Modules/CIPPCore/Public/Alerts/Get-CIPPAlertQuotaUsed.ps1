@@ -4,24 +4,43 @@ function Get-CIPPAlertQuotaUsed {
         Entrypoint
     #>
     [CmdletBinding()]
-    Param (
+    param (
         [Parameter(Mandatory = $false)]
-        $input,
+        [Alias('input')]
+        $InputValue,
         $TenantFilter
     )
 
-
     try {
-        $AlertData = New-GraphGetRequest -uri "https://graph.microsoft.com/beta/reports/getMailboxUsageDetail(period='D7')?`$format=application/json" -tenantid $TenantFilter | ForEach-Object {
-            if ($_.StorageUsedInBytes -eq 0) { return }
-            $PercentLeft = [math]::round($_.StorageUsedInBytes / $_.prohibitSendReceiveQuotaInBytes * 100)
-            if ($Input) { $Value = $input } else { $Value = 90 }
-            if ($PercentLeft -gt $Value) {
-                "$($_.UserPrincipalName): Mailbox is more than $($value)% full. Mailbox is $PercentLeft% full"
-            }
-            
-        }
-        Write-AlertTrace -cmdletName $MyInvocation.MyCommand -tenantFilter $TenantFilter -data $AlertData
+        $AlertData = New-GraphGetRequest -uri "https://graph.microsoft.com/beta/reports/getMailboxUsageDetail(period='D7')?`$format=application/json" -tenantid $TenantFilter
     } catch {
+        return
     }
+    $OverQuota = $AlertData | ForEach-Object {
+        if ([string]::IsNullOrEmpty($_.StorageUsedInBytes) -or [string]::IsNullOrEmpty($_.prohibitSendReceiveQuotaInBytes) -or $_.StorageUsedInBytes -eq 0 -or $_.prohibitSendReceiveQuotaInBytes -eq 0) { return }
+        try {
+            $PercentLeft = [math]::round(($_.storageUsedInBytes / $_.prohibitSendReceiveQuotaInBytes) * 100)
+        } catch { $PercentLeft = 100 }
+        try {
+            if ([int]$InputValue -gt 0) {
+                $Value = [int]$InputValue
+            } else {
+                $Value = 90
+            }
+        } catch {
+            $Value = 90
+        }
+        if ($PercentLeft -gt $Value) {
+            [PSCustomObject]@{
+                Message                         = "$($_.userPrincipalName): Mailbox is more than $($value)% full. Mailbox is $PercentLeft% full"
+                Owner                           = $_.userPrincipalName
+                RecipientType                   = $_.recipientType
+                UsagePercent                    = $PercentLeft
+                StorageUsedInBytes              = $_.storageUsedInBytes
+                ProhibitSendReceiveQuotaInBytes = $_.prohibitSendReceiveQuotaInBytes
+                Tenant                          = $TenantFilter
+            }
+        }
+    }
+    Write-AlertTrace -cmdletName $MyInvocation.MyCommand -tenantFilter $TenantFilter -data $OverQuota
 }
