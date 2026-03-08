@@ -4,9 +4,10 @@ function Get-CIPPAlertSecDefaultsUpsell {
         Entrypoint
     #>
     [CmdletBinding()]
-    Param (
+    param (
         [Parameter(Mandatory = $false)]
-        $input,
+        [Alias('input')]
+        $InputValue,
         $TenantFilter
     )
 
@@ -14,7 +15,12 @@ function Get-CIPPAlertSecDefaultsUpsell {
         try {
             $SecDefaults = (New-GraphGetRequest -uri 'https://graph.microsoft.com/beta/policies/identitySecurityDefaultsEnforcementPolicy' -tenantid $TenantFilter)
             if ($SecDefaults.isEnabled -eq $false -and $SecDefaults.securityDefaultsUpsell.action -in @('autoEnable', 'autoEnabledNotify')) {
-                $AlertData = 'Security Defaults will be automatically enabled on {0}' -f $SecDefaults.securityDefaultsUpsell.dueDateTime
+                $AlertData = [PSCustomObject]@{
+                    Message        = ('Security Defaults will be automatically enabled on {0}' -f $SecDefaults.securityDefaultsUpsell.dueDateTime)
+                    EnablementDate = $SecDefaults.securityDefaultsUpsell.dueDateTime
+                    Action         = $SecDefaults.securityDefaultsUpsell.action
+                    Tenant         = $TenantFilter
+                }
                 Write-AlertTrace -cmdletName $MyInvocation.MyCommand -tenantFilter $TenantFilter -data $AlertData
 
             }
